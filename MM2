@@ -1,0 +1,219 @@
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+local Window = Library.CreateLib("Vortex's Murder Mystery2 UI", "DarkTheme")
+
+local MainTab = Window:NewTab("Main")
+local CharacterTab = Window:NewTab("Character")
+local OTScripts = Window:NewTab("Scripts")
+local MiscTab = Window:NewTab("Miscellaneous")
+
+------------------------------------------
+local RoleColorPallete = {
+	["Innocent"] = Color3.fromRGB(0, 255, 0);
+	["Sheriff"] = Color3.fromRGB(0, 0, 128);
+	["Murderer"] = Color3.fromRGB(255, 0, 0);
+}
+
+local InternalContent = {
+	["BoolClass"] = {
+		["AutoHighlights"] = {
+			["Innocent"] = false,
+			["Sheriff"] = false,
+			["Murderer"] = false,
+		},
+	},
+	["TableClass"] = {
+		["PlayersInGame"] = {},
+		["XrayItems"] = {},
+	},
+}
+
+local function analyzePlayers()
+	local sheriff, murderer, innocents = nil, nil, {}
+
+	for _, plr in pairs(game:GetService("Players"):GetPlayers()) do
+		if not sheriff and (plr.Backpack:FindFirstChild("Gun") or (plr.Character and plr.Character:FindFirstChild("Gun"))) then
+			sheriff = plr
+		elseif not murderer and (plr.Backpack:FindFirstChild("Knife") or (plr.Character and plr.Character:FindFirstChild("Knife"))) then
+			murderer = plr
+		else
+			table.insert(innocents, plr)
+		end
+	end
+
+	return sheriff, murderer, innocents
+end
+
+local function SendNotification(title, description)
+	game:GetService("StarterGui"):SetCore("SendNotification", {
+		title = title;
+		text = description;
+		time = 4;
+	})
+end
+
+local function HighlightPlayer(Role, player)
+	if player.Character then
+		if not player.Character:FindFirstChild("Highlight") then
+			local newHL = Instance.new("Highlight", player.Character)
+			newHL.FillColor = RoleColorPallete[Role]
+
+			return newHL
+		end
+	end
+end
+
+local function RemoveHighlight(HL)
+	if HL then
+		HL:Destroy()
+	end
+end
+
+local function SetInternalConfig(Class, Section, ConfigName, newValue)
+	InternalContent[Class][Section][ConfigName] = newValue
+end
+
+local function GetInternalConfig(Class, Section, ConfigName)
+	return InternalContent[Class][Section][ConfigName]
+end
+
+local GeneralSection = MainTab:NewSection("General")
+local CommonScripts = OTScripts:NewSection("Common Scripts")
+
+local CurrentSheriff = GeneralSection:NewLabel("Sheriff: None")
+local CurrentMurderer = GeneralSection:NewLabel("Murderer: None")
+
+GeneralSection:NewToggle("AutoHighlight Sheriff", "Highlights Sheriff", function(Enabled)
+	SetInternalConfig("BoolClass", "AutoHighlights", "Sheriff", Enabled)
+end)
+
+GeneralSection:NewToggle("AutoHighlight Murderer", "Highlights Murderer", function(Enabled)
+	SetInternalConfig("BoolClass", "AutoHighlights", "Murderer", Enabled)
+end)
+
+GeneralSection:NewToggle("AutoHighlight Innocent", "Highlights Innocents", function(Enabled)
+	SetInternalConfig("BoolClass", "AutoHighlights", "Innocent", Enabled)
+end)
+
+local XrayItems = InternalContent["TableClass"]["XrayItems"]
+
+GeneralSection:NewToggle("Xray", "Enables/Disables Xray, allowing you to view through walls.", function(state)
+	if state then
+		for _, v in pairs(workspace:GetDescendants()) do
+			if v:IsA("BasePart") then
+				if not XrayItems[v] then
+					XrayItems[v] = v.Transparency
+					v.Transparency = 0.6
+				end
+			end
+		end
+	else
+		for obj, originalTransparency in pairs(XrayItems) do
+			if obj and obj:IsDescendantOf(workspace) then
+				obj.Transparency = originalTransparency
+			end
+		end
+		table.clear(XrayItems)
+	end
+end)
+
+GeneralSection:NewButton("Get Gun", "Finds & Gets the dropped gun.", function()
+	for _, v in pairs(workspace:GetDescendants()) do
+		if v.Name:match("GunDrop") and v.Parent:GetAttribute("MapID") then
+			if game.Players.LocalPlayer.Character then
+				local oldPos = game.Players.LocalPlayer.Character.PrimaryPart.Position
+				game.Players.LocalPlayer.Character:MoveTo(v.Position)
+				wait(.7)
+				game.Players.LocalPlayer.Character:MoveTo(oldPos)
+			end
+		end
+	end
+end)
+
+local HumanoidSection = CharacterTab:NewSection("Humanoid Properties")
+
+HumanoidSection:NewSlider("WalkSpeed", "Changes your walk speed. ", 500, 16, function(newSpeed)
+    if game:GetService("Players").LocalPlayer.Character then
+		game:GetService("Players").LocalPlayer.Character:FindFirstChild("Humanoid").WalkSpeed = newSpeed
+	end
+end)
+
+HumanoidSection:NewSlider("JumpPower", "Changes your power when jumping. ", 300, 50, function(newJP)
+    if game:GetService("Players").LocalPlayer.Character then
+		game:GetService("Players").LocalPlayer.Character:FindFirstChild("Humanoid").JumpPower = newJP
+	end
+end)
+
+HumanoidSection:NewSlider("HipHeight", "Changes your height from the ground. ", 17, 1, function(newHEIGHT)
+    if game:GetService("Players").LocalPlayer.Character then
+		game:GetService("Players").LocalPlayer.Character:FindFirstChild("Humanoid").HipHeight = newHEIGHT
+	end
+end)
+
+
+CommonScripts:NewButton("Infinite Yield", "Loads infinite yield.", function()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+end)
+
+CommonScripts:NewButton("Vynixu's MM2", "Loads Vynixu's UI", function()
+	loadstring(game:GetObjects("rbxassetid://4001118261")[1].Source)()
+end)
+
+CommonScripts:NewButton("Dex Explorer", "Loads the ultimate pro game debugging", function()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()
+end)
+
+-------------------------------------------------
+
+game:GetService("RunService").RenderStepped:Connect(function()
+	local sheriff, murderer, innocents = analyzePlayers()
+
+	-- Sheriff
+	if sheriff and sheriff.Character then
+		CurrentSheriff:UpdateLabel("Sheriff: " .. sheriff.Name)
+		if GetInternalConfig("BoolClass", "AutoHighlights", "Sheriff") then
+			HighlightPlayer("Sheriff", sheriff)
+		else
+			RemoveHighlight(sheriff.Character:FindFirstChild("Highlight"))
+		end
+	else
+		CurrentSheriff:UpdateLabel("Sheriff: None")
+	end
+
+	-- Murderer
+	if murderer and murderer.Character then
+		CurrentMurderer:UpdateLabel("Murderer: " .. murderer.Name)
+		if GetInternalConfig("BoolClass", "AutoHighlights", "Murderer") then
+			HighlightPlayer("Murderer", murderer)
+		else
+			RemoveHighlight(murderer.Character:FindFirstChild("Highlight"))
+		end
+	else
+		CurrentMurderer:UpdateLabel("Murderer: None")
+	end
+
+	-- Innocents
+	for _, plr in pairs(innocents) do
+		if plr.Character then
+			if GetInternalConfig("BoolClass", "AutoHighlights", "Innocent") then
+				HighlightPlayer("Innocent", plr)
+			else
+				RemoveHighlight(plr.Character:FindFirstChild("Highlight"))
+			end
+		end
+	end
+
+
+end)
+
+local ExtraSection = MiscTab:NewSection("Miscellaneous")
+ExtraSection:NewKeybind("Toggle UI", "Toggles UI", Enum.KeyCode.G, function()
+	Library:ToggleUI()
+end)
+
+ExtraSection:NewColorPicker("Text Color", "UI Color", Color3.fromRGB(255, 255, 255), function(color)
+    Library:ChangeColor("TextColor", color)
+end)
+
+ExtraSection:NewColorPicker("Backround Color", "UI Color", Color3.fromRGB(255, 255, 255), function(color)
+    Library:ChangeColor("Background", color)
+end)````
